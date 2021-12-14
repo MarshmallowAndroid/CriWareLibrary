@@ -19,7 +19,6 @@ namespace Test
         private readonly object positionLock = new();
 
         private readonly short[][] sampleBuffer;
-        private readonly short[] sampleBuffer1D;
 
         private long samplePosition;
 
@@ -37,14 +36,11 @@ namespace Test
                 sampleBuffer[i] = new short[info.SamplesPerBlock];
             }
 
-            sampleBuffer1D = new short[info.ChannelCount * info.SamplesPerBlock];
+            Loop = info.LoopEnabled;
+            WaveFormat = new WaveFormat(info.SamplingRate, info.ChannelCount);
 
             samplePosition = info.EncoderDelay;
-
-            int block = (int)(samplePosition / info.SamplesPerBlock);
-            FillBuffer(block);
-
-            WaveFormat = new WaveFormat((int)info.SamplingRate, (int)info.ChannelCount);
+            FillBuffer(samplePosition);
         }
 
         public HcaInfo Info => info;
@@ -71,8 +67,7 @@ namespace Test
                     samplePosition = value / info.ChannelCount / sizeof(short);
                     samplePosition += info.EncoderDelay;
 
-                    int block = (int)(samplePosition / info.SamplesPerBlock);
-                    FillBuffer(block);
+                    if (Position < Length) FillBuffer(samplePosition);
                 }
             }
         }
@@ -87,45 +82,68 @@ namespace Test
                 {
                     if (Position >= Length) break;
 
-                    if (samplePosition - info.EncoderDelay == info.SampleCount)
-                        break;
-                    else if (samplePosition - info.EncoderDelay == info.LoopEndSample && Loop)
-                    {
-                        FillBuffer((int)info.LoopStartBlock);
-
-                        samplePosition = info.LoopStartSample + info.EncoderDelay;
-                    }
-
-                    if (samplePosition % info.SamplesPerBlock == 0) FillBuffer();
+                    if (samplePosition % info.SamplesPerBlock == 0) FillBuffer(samplePosition);
 
                     for (int j = 0; j < info.ChannelCount; j++)
                     {
-                        //int bufferOffset = (int)((i * info.ChannelCount + j) * sizeof(short));
-                        //buffer[offset + bufferOffset] = (byte)sampleBuffer[j][samplePosition % info.SamplesPerBlock];
-                        //buffer[offset + bufferOffset + 1] = (byte)(sampleBuffer[j][samplePosition % info.SamplesPerBlock] >> 8);
-
-                        int bufferIndex = (int)((i * info.ChannelCount + j) * sizeof(short));
-                        int sampleBufferIndex = (int)(samplePosition % info.SamplesPerBlock);
-                        buffer[offset + bufferIndex] = (byte)sampleBuffer1D[sampleBufferIndex * info.ChannelCount + j];
-                        buffer[offset + bufferIndex + 1] = (byte)(sampleBuffer1D[sampleBufferIndex * info.ChannelCount + j] >> 8);
+                        int bufferOffset = (i * info.ChannelCount + j) * sizeof(short);
+                        buffer[offset + bufferOffset] = (byte)sampleBuffer[j][samplePosition % info.SamplesPerBlock];
+                        buffer[offset + bufferOffset + 1] = (byte)(sampleBuffer[j][samplePosition % info.SamplesPerBlock] >> 8);
 
                         read += sizeof(short);
                     }
 
                     samplePosition++;
+
+                    if (samplePosition - info.EncoderDelay >= info.LoopEndSample && Loop)
+                    {
+                        samplePosition = info.LoopStartSample + info.EncoderDelay;
+                        FillBuffer(samplePosition);
+                    }
                 }
 
                 return read;
             }
         }
 
-        private void FillBuffer(int block = -1)
+        private void FillBuffer(long sample)
+        {
+            int block = (int)(sample / info.SamplesPerBlock);
+            FillBuffer(block);
+        }
+
+        private void FillBuffer(int block)
         {
             if (block >= 0) hcaFileStream.Position = dataStart + block * info.BlockSize;
 
-            decoder.DecodeBlock(hcaFileReader.ReadBytes((int)info.BlockSize));
-            //decoder.ReadSamples16(sampleBuffer);
-            decoder.ReadSamples16(sampleBuffer1D);
+            if (hcaFileStream.Position < hcaFileStream.Length)
+            {
+                decoder.DecodeBlock(hcaFileReader.ReadBytes(info.BlockSize));
+                decoder.ReadSamples16(sampleBuffer);
+            }
         }
+
+        //private void FillBuffer()
+        //{
+        //    if (hcaFileStream.Position >= hcaFileStream.Length)
+        //        hcaFileStream.Position = dataStart;
+
+        //    byte[] blockBytes = hcaFileReader.ReadBytes(info.BlockSize);
+        //    if (blockBytes.Length > 0)
+        //    {
+        //        decoder.DecodeBlock(blockBytes);
+        //        decoder.ReadSamples16(sampleBuffer);
+        //    }
+        //    else
+        //    {
+        //        for (int i = 0; i < sampleBuffer.Length; i++)
+        //        {
+        //            for (int j = 0; j < sampleBuffer[i].Length; j++)
+        //            {
+        //                sampleBuffer[i][j] = 0;
+        //            }
+        //        }
+        //    }
+        //}
     }
 }
