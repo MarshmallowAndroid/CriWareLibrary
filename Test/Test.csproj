@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\ClHcaSharp\ClHcaSharp\ClHcaSharp.csproj" />
+    <ProjectReference Include="..\ClHcaSharp\ClHcaSharp\ClHcaSharp.csproj" />
     <ProjectReference Include="..\CriwareFormats\CriwareFormats.csproj" />
   </ItemGroup>
 
