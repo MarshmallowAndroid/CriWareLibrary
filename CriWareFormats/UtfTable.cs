@@ -11,7 +11,8 @@ namespace CriWareFormats
     {
         Name = 0x10,
         Default = 0x20,
-        Row = 0x40
+        Row = 0x40,
+        Undefined = 0x80
     }
 
     public enum ColumnType : byte
@@ -32,37 +33,41 @@ namespace CriWareFormats
         Undefined = 0xFF
     }
 
-    public sealed class UtfTableColumn
+    public struct Column
     {
-        public ColumnFlag Flag { get; internal set; }
-        public ColumnType Type { get; internal set; }
-        public string Name { get; internal set; }
-        public uint Offset { get; internal set; }
-    }
-
-    public sealed class ValueData
-    {
-        public uint Offset { get; set; }
-        public uint Length { get; set; }
+        public ColumnFlag Flag;
+        public ColumnType Type;
+        public string Name;
+        public uint Offset;
 
         public override string ToString()
         {
-            return $"Offset: {Offset}, Length: {Length}";
+            return Name;
         }
     }
 
-    public sealed class UtfTableQueryResult
+    public struct VLData
     {
-        public bool Found { get; internal set; }
-        public ColumnType Type { get; internal set; }
-        public object Value { get; internal set; }
+        public uint Offset;
+        public uint Size;
+
+        public override string ToString()
+        {
+            return $"Offset: {Offset}, Length: {Size}";
+        }
+    }
+
+    public struct Result
+    {
+        public ColumnType Type;
+        public object Value;
     }
 
     public sealed class UtfTable : IDisposable
     {
         private readonly BinaryReader binaryReader;
-
         private readonly uint tableOffset;
+
         private readonly uint tableSize;
         private readonly ushort version;
         private readonly ushort rowsOffset;
@@ -70,38 +75,53 @@ namespace CriWareFormats
         private readonly uint dataOffset;
         private readonly uint nameOffset;
 
-        //private readonly ushort columns;
+        private readonly ushort columns;
         private readonly ushort rowWidth;
+        private readonly uint rows;
 
-        //private readonly uint rows;
+        private readonly byte[] schemaBuffer;
+        private readonly Column[] schema;
+
+        private readonly uint schemaOffset;
+        private readonly uint schemaSize;
+        private readonly uint rowsSize;
+        private readonly uint dataSize;
         private readonly uint stringsSize;
 
-        private readonly uint schemaOffset = 0x20;
-        //UtfTableColumn[] Schema;
-
         private readonly byte[] stringTable;
+        private readonly string tableName;
 
-        public UtfTable(Stream utfTableStream)
+        public UtfTable(Stream utfTableStream, out uint utfTableRows, out string utfTableRowName) :
+            this(utfTableStream, 0, out utfTableRows, out utfTableRowName)
+        { }
+
+        public UtfTable(Stream utfTableStream, uint offset, out uint utfTableRows, out string rowName)
         {
             binaryReader = new BinaryReader(utfTableStream);
+            tableOffset = offset;
 
-            tableOffset = (uint)binaryReader.BaseStream.Position;
+            binaryReader.BaseStream.Position = offset;
 
             if (!binaryReader.ReadChars(4).SequenceEqual("@UTF".ToCharArray()))
                 throw new InvalidDataException("Invalid magic.");
-
             tableSize = binaryReader.ReadUInt32BE() + 0x08;
             version = binaryReader.ReadUInt16BE();
             rowsOffset = (ushort)(binaryReader.ReadUInt16BE() + 0x08);
             stringsOffset = binaryReader.ReadUInt32BE() + 0x08;
             dataOffset = binaryReader.ReadUInt32BE() + 0x08;
             nameOffset = binaryReader.ReadUInt32BE();
-            Columns = binaryReader.ReadUInt16BE();
+            columns = binaryReader.ReadUInt16BE();
             rowWidth = binaryReader.ReadUInt16BE();
-            Rows = binaryReader.ReadUInt32BE();
+            rows = binaryReader.ReadUInt32BE();
 
+            schemaOffset = 0x20;
+            schemaSize = rowsOffset - schemaOffset;
+            rowsSize = stringsOffset - rowsOffset;
             stringsSize = dataOffset - stringsOffset;
+            dataSize = tableSize - dataOffset;
 
+            if (version != 0x00 && version != 0x01)
+                throw new InvalidDataException("Unknown @UTF version.");
             if (tableOffset + tableSize > utfTableStream.Length)
                 throw new InvalidDataException("Table size exceeds bounds of file.");
             if (rowsOffset > tableSize || stringsOffset > tableSize || dataOffset > tableSize)
@@ -111,29 +131,38 @@ namespace CriWareFormats
             if (Columns <= 0)
                 throw new InvalidDataException("Table has no columns.");
 
-            binaryReader.BaseStream.Position = tableOffset + stringsOffset;
+            schemaBuffer = new byte[schemaSize];
+            binaryReader.BaseStream.Position = tableOffset + schemaOffset;
+            if (binaryReader.Read(schemaBuffer, 0, (int)schemaSize) != schemaSize)
+                throw new InvalidDataException("Failed to read schema.");
 
             stringTable = new byte[stringsSize];
+            binaryReader.BaseStream.Position = tableOffset + stringsOffset;
             if (binaryReader.Read(stringTable, 0, (int)stringsSize) != stringsSize)
                 throw new InvalidDataException("Failed to read string table.");
 
-            binaryReader.BaseStream.Position = tableOffset + this.schemaOffset;
-
             uint columnOffset = 0;
-            uint schemaOffset = tableOffset + this.schemaOffset;
+            uint schemaPos = 0;
 
-            Schema = new UtfTableColumn[Columns];
+            tableName = GetStringFromTable(nameOffset);
 
-            for (int i = 0; i < Columns; i++)
+            schema = new Column[columns];
+
+            BinaryReader bytesReader = new(new MemoryStream(schemaBuffer) { Position = 0 });
+            for (int i = 0; i < columns; i++)
             {
-                binaryReader.BaseStream.Position = schemaOffset;
+                bytesReader.BaseStream.Position = schemaPos;
 
-                byte info = binaryReader.ReadByte();
-                uint nameOffset = binaryReader.ReadUInt32BE();
+                byte info = bytesReader.ReadByte();
+                uint nameOffset = bytesReader.ReadUInt32BE();
 
-                schemaOffset += 0x1 + 0x4;
+                if (nameOffset > stringsSize)
+                    throw new InvalidDataException("String offset out of bounds.");
+                schemaPos += 0x1 + 0x4;
 
-                Schema[i] = new UtfTableColumn()
+                bytesReader.BaseStream.Position = schemaPos;
+
+                schema[i] = new()
                 {
                     Flag = (ColumnFlag)(info & 0xF0),
                     Type = (ColumnType)(info & 0x0F),
@@ -141,280 +170,184 @@ namespace CriWareFormats
                     Offset = 0
                 };
 
-                uint valueSize = Schema[i].Type switch
+                if (schema[i].Flag == 0 ||
+                    !schema[i].Flag.HasFlag(ColumnFlag.Name) ||
+                     schema[i].Flag.HasFlag(ColumnFlag.Default) && schema[i].Flag.HasFlag(ColumnFlag.Row) ||
+                     schema[i].Flag.HasFlag(ColumnFlag.Undefined))
+                    throw new InvalidDataException("Unknown column flag combo found.");
+
+                uint valueSize = schema[i].Type switch
                 {
-                    ColumnType.Byte or ColumnType.SByte => 0x01,
-                    ColumnType.UInt16 or ColumnType.Int16 => 0x02,
-                    ColumnType.UInt32 or ColumnType.Int32 or ColumnType.Float or ColumnType.String => 0x04,
-                    ColumnType.UInt64 or ColumnType.Int64 or ColumnType.VLData => 0x08,
-                    _ => throw new InvalidDataException("Unknown column type."),
+                    ColumnType.Byte or ColumnType.SByte => 0x1,
+                    ColumnType.UInt16 or ColumnType.Int16 => 0x2,
+                    ColumnType.UInt32 or ColumnType.Int32 or ColumnType.Float or ColumnType.String => 0x4,
+                    ColumnType.UInt64 or ColumnType.Int64 or ColumnType.VLData => 0x8,
+                    _ => throw new InvalidDataException("Invalid column type."),
                 };
 
-                if (Schema[i].Flag.HasFlag(ColumnFlag.Name))
+                if (schema[i].Flag.HasFlag(ColumnFlag.Name))
+                    schema[i].Name = GetStringFromTable(nameOffset);
+
+                if (schema[i].Flag.HasFlag(ColumnFlag.Default))
                 {
-                    Schema[i].Name = GetStringFromTable(nameOffset);
+                    schema[i].Offset = schemaPos;
+                    schemaPos += valueSize;
+
+                    bytesReader.BaseStream.Position = schemaPos;
+
                 }
 
-                if (Schema[i].Flag.HasFlag(ColumnFlag.Default))
+                if (schema[i].Flag.HasFlag(ColumnFlag.Row))
                 {
-                    Schema[i].Offset = schemaOffset - (tableOffset + this.schemaOffset);
-                    schemaOffset += valueSize;
-                }
-
-                if (Schema[i].Flag.HasFlag(ColumnFlag.Row))
-                {
-                    Schema[i].Offset = columnOffset;
+                    schema[i].Offset = columnOffset;
                     columnOffset += valueSize;
                 }
             }
 
-            Name = GetStringFromTable(nameOffset);
+            utfTableRows = rows;
+            rowName = GetStringFromTable(nameOffset);
+
+            bytesReader.Dispose();
         }
 
-        public ushort Columns { get; }
+        public ushort Columns => columns;
 
-        public uint Rows { get; }
+        public uint Rows => rows;
 
-        public UtfTableColumn[] Schema { get; }
+        public Column[] Schema => schema;
 
-        public string Name { get; }
+        public string TableName => tableName;
 
-        public UtfTable OpenSubtable(string tableName)
+        public int GetColumn(string columnName)
         {
-            if (!QueryData(tableName, out ValueData tableValueData))
-                throw new ArgumentException("Subtable does not exist.");
-            binaryReader.BaseStream.Position = tableValueData.Offset;
-            return new UtfTable(binaryReader.BaseStream);
-        }
-
-        public UtfTableQueryResult Query(string columnName, int row)
-        {
-            UtfTableQueryResult result = new()
+            for (int i = 0; i < columns; i++)
             {
-                Found = false
-            };
+                Column column = schema[i];
 
-            for (int i = 0; i < Columns; i++)
-            {
-                UtfTableColumn column = Schema[i];
-                uint dataOffset;
+                if (column.Name is null || !column.Name.Equals(columnName))
+                    continue;
 
-                if (column.Name == string.Empty || !column.Name.Equals(columnName)) continue;
-
-                result.Found = true;
-                result.Type = column.Type;
-
-                if (column.Flag.HasFlag(ColumnFlag.Default))
-                    dataOffset = tableOffset + schemaOffset + column.Offset;
-                else if (column.Flag.HasFlag(ColumnFlag.Row))
-                    dataOffset = (uint)(tableOffset + rowsOffset + row * rowWidth + column.Offset);
-                else
-                    dataOffset = 0;
-
-                if (dataOffset == 0)
-                {
-                    result.Value = null;
-                    break;
-                }
-
-                binaryReader.BaseStream.Position = dataOffset;
-
-                switch (column.Type)
-                {
-                    case ColumnType.Byte:
-                        result.Value = binaryReader.ReadByte();
-                        break;
-
-                    case ColumnType.SByte:
-                        result.Value = binaryReader.ReadSByte();
-                        break;
-
-                    case ColumnType.UInt16:
-                        result.Value = binaryReader.ReadUInt16BE();
-                        break;
-
-                    case ColumnType.Int16:
-                        result.Value = binaryReader.ReadInt16BE();
-                        break;
-
-                    case ColumnType.UInt32:
-                        result.Value = binaryReader.ReadUInt32BE();
-                        break;
-
-                    case ColumnType.Int32:
-                        result.Value = binaryReader.ReadInt32BE();
-                        break;
-
-                    case ColumnType.UInt64:
-                        result.Value = binaryReader.ReadUInt64BE();
-                        break;
-
-                    case ColumnType.Int64:
-                        result.Value = binaryReader.ReadInt64BE();
-                        break;
-
-                    case ColumnType.Float:
-                        result.Value = binaryReader.ReadSingleBE();
-                        break;
-
-                    case ColumnType.String:
-                        uint stringOffset = binaryReader.ReadUInt32BE();
-                        if (stringOffset > stringsSize)
-                            throw new InvalidDataException("Invalid string offset.");
-
-                        result.Value = GetStringFromTable(stringOffset);
-                        break;
-
-                    case ColumnType.VLData:
-                        result.Value = new ValueData()
-                        {
-                            Offset = binaryReader.ReadUInt32BE(),
-                            Length = binaryReader.ReadUInt32BE()
-                        };
-                        break;
-
-                    default:
-                        throw new InvalidDataException("Unknown column type.");
-                }
-
-                break;
+                return i;
             }
 
-            return result;
+            return -1;
         }
 
-        public bool QueryValue(string columnName, int row, ColumnType type, out object value)
+        private bool Query(int row, int column, out Result result)
         {
-            UtfTableQueryResult result = Query(columnName, row);
+            result = new();
 
-            value = result.Type switch
+            if (row >= rows || row < 0)
+                throw new ArgumentOutOfRangeException(nameof(row));
+            if (column >= columns || column < 0)
+                throw new ArgumentOutOfRangeException(nameof(column));
+
+            Column col = schema[column];
+            uint dataOffset = 0;
+            BinaryReader bytesReader = null;
+
+            result.Type = col.Type;
+
+            if (col.Flag.HasFlag(ColumnFlag.Default))
             {
-                ColumnType.Byte => (byte)0,
-                ColumnType.SByte => (sbyte)0,
-                ColumnType.UInt16 => (ushort)0,
-                ColumnType.Int16 => (short)0,
-                ColumnType.UInt32 => (uint)0,
-                ColumnType.Int32 => 0,
-                ColumnType.UInt64 => (ulong)0,
-                ColumnType.Int64 => (long)0,
-                ColumnType.Float => (float)0,
-                ColumnType.String => "",
-                ColumnType.VLData => new ValueData()
-                {
-                    Offset = 0,
-                    Length = 0
-                },
-                _ => throw new InvalidDataException("Unknown column type."),
-            };
-            if (result.Value != null) value = result.Value;
+                bytesReader = new(new MemoryStream(schemaBuffer));
+                bytesReader.BaseStream.Position = col.Offset;
+            }
+            else if (col.Flag.HasFlag(ColumnFlag.Row))
+            {
+                dataOffset = (uint)(tableOffset + rowsOffset + row * rowWidth + col.Offset);
+            }
+            else
+                throw new InvalidDataException("Invalid flag.");
 
-            if (result == null || !result.Found || result.Type != type)
-                return false;
+            binaryReader.BaseStream.Position = dataOffset;
+
+            switch (col.Type)
+            {
+                case ColumnType.Byte:
+                    result.Value = bytesReader is not null ? bytesReader.ReadByte() : binaryReader.ReadByte();
+                    break;
+                case ColumnType.SByte:
+                    result.Value = bytesReader is not null ? bytesReader.ReadSByte() : binaryReader.ReadSByte();
+                    break;
+                case ColumnType.UInt16:
+                    result.Value = bytesReader is not null ? bytesReader.ReadUInt16BE() : binaryReader.ReadUInt16BE();
+                    break;
+                case ColumnType.Int16:
+                    result.Value = bytesReader is not null ? bytesReader.ReadInt16BE() : binaryReader.ReadInt16BE();
+                    break;
+                case ColumnType.UInt32:
+                    result.Value = bytesReader is not null ? bytesReader.ReadUInt32BE() : binaryReader.ReadUInt32BE();
+                    break;
+                case ColumnType.Int32:
+                    result.Value = bytesReader is not null ? bytesReader.ReadInt32BE() : binaryReader.ReadInt32BE();
+                    break;
+                case ColumnType.UInt64:
+                    result.Value = bytesReader is not null ? bytesReader.ReadUInt64BE() : binaryReader.ReadUInt64BE();
+                    break;
+                case ColumnType.Int64:
+                    result.Value = bytesReader is not null ? bytesReader.ReadInt64BE() : binaryReader.ReadInt64BE();
+                    break;
+                case ColumnType.Float:
+                    result.Value = bytesReader is not null ? bytesReader.ReadSingleBE() : binaryReader.ReadSingleBE();
+                    break;
+                //case ColumnType.Double:
+                //    break;
+                case ColumnType.String:
+                    uint nameOffset = bytesReader.ReadUInt32BE();
+                    if (nameOffset > stringsSize)
+                        throw new InvalidDataException("Name offset out of bounds.");
+                    result.Value = GetStringFromTable(nameOffset);
+                    break;
+                case ColumnType.VLData:
+                    if (bytesReader is not null)
+                    {
+                        result.Value = new VLData()
+                        {
+                            Offset = bytesReader.ReadUInt32BE(),
+                            Size = bytesReader.ReadUInt32BE()
+                        };
+                    }
+                    else
+                    {
+                        result.Value = new VLData()
+                        {
+                            Offset = binaryReader.ReadUInt32BE(),
+                            Size = binaryReader.ReadUInt32BE()
+                        };
+                    }
+                    break;
+                //case ColumnType.UInt128:
+                //    break;
+                default:
+                    return false;
+            }
 
             return true;
         }
 
-        public bool QuerySByte(string columnName, out sbyte value, int row = 0)
+        public bool Query<T>(int row, int column, out T value)
         {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.SByte, out object objectValue);
-            if (hasColumn) value = (sbyte)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
+            bool valid = Query(row, column, out Result result);
 
-        public bool QueryByte(string columnName, out byte value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.Byte, out object objectValue);
-            if (hasColumn) value = (byte)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
+            bool enumParseResult = Enum.TryParse(typeof(ColumnType), typeof(T).Name, out object type);
 
-        public bool QueryInt16(string columnName, out short value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.Int16, out object objectValue);
-            if (hasColumn) value = (short)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
-
-        public bool QueryUInt16(string columnName, out ushort value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.UInt16, out object objectValue);
-            if (hasColumn) value = (ushort)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
-
-        public bool QueryInt32(string columnName, out int value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.Int32, out object objectValue);
-            if (hasColumn) value = (int)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
-
-        public bool QueryUInt32(string columnName, out uint value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.UInt32, out object objectValue);
-            if (hasColumn) value = (uint)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
-
-        public bool QueryInt64(string columnName, out long value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.Int64, out object objectValue);
-            if (hasColumn) value = (long)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
-
-        public bool QueryUInt64(string columnName, out ulong value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.UInt64, out object objectValue);
-            if (hasColumn) value = (ulong)objectValue;
-            else value = 0;
-            return hasColumn;
-        }
-
-        public bool QueryString(string columnName, out string value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.String, out object objectValue);
-            if (hasColumn) value = (string)objectValue;
-            else value = string.Empty;
-            return hasColumn;
-        }
-
-        public bool QueryData(string columnName, out ValueData value, int row = 0)
-        {
-            bool hasColumn = QueryValue(columnName, row, ColumnType.VLData, out object objectValue);
-            if (hasColumn)
+            if (!valid || !enumParseResult || result.Type != (ColumnType)type)
             {
-                value = (ValueData)objectValue;
-                value.Offset += tableOffset + dataOffset;
+                value = default;
+                return false;
             }
-            else value = null;
-            return hasColumn;
+
+            value = (T)result.Value;
+
+            if (value is VLData vlData)
+                vlData.Offset += tableOffset + dataOffset;
+
+            return true;
         }
 
-        public byte[] GetData(long offset, uint length)
-        {
-            long restore = binaryReader.BaseStream.Position;
-            binaryReader.BaseStream.Position = offset;
-            byte[] data = binaryReader.ReadBytes((int)length);
-            binaryReader.BaseStream.Position = restore;
-            return data;
-        }
-
-        //public ushort ReadUInt16BE(long offset)
-        //{
-        //    long restore = binaryReader.BaseStream.Position;
-        //    binaryReader.BaseStream.Position = offset;
-        //    ushort value = binaryReader.ReadUInt16BE();
-        //    binaryReader.BaseStream.Position = restore;
-        //    return value;
-        //}
+        public bool Query<T>(int row, string columnName, out T value) =>
+            Query(row, GetColumn(columnName), out value);
 
         private string GetStringFromTable(uint offset)
         {
@@ -431,6 +364,20 @@ namespace CriWareFormats
             }
 
             return stringBuilder.ToString();
+        }
+
+        public UtfTable OpenSubtable(string tableName)
+        {
+            if (!Query(0, tableName, out VLData tableValueData))
+                throw new ArgumentException("Subtable does not exist.");
+
+            binaryReader.BaseStream.Position = tableValueData.Offset;
+
+            return new UtfTable(
+                binaryReader.BaseStream,
+                tableValueData.Offset,
+                out uint _,
+                out string _);
         }
 
         public void Dispose()

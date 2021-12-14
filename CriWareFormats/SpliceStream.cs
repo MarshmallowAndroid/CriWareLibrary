@@ -1,20 +1,20 @@
 ﻿using System;
 using System.IO;
 
-namespace CriWareFormats.Common
+namespace CriWareFormats
 {
-    public class IsolatedStream : Stream
+    public class SpliceStream : Stream
     {
-        private readonly Stream sourceStream;
+        private readonly Stream innerStream;
         private readonly long realPosition;
 
         private long internalPosition;
 
         private readonly object positionLock = new();
 
-        public IsolatedStream(Stream sourceStream, long offset, long length)
+        public SpliceStream(Stream sourceStream, long offset, long length)
         {
-            this.sourceStream = sourceStream;
+            innerStream = sourceStream;
             realPosition = offset;
             internalPosition = 0;
 
@@ -45,7 +45,7 @@ namespace CriWareFormats.Common
                     long checkValue = value + realPosition;
                     if (value < 0 || value >= Length) throw new ArgumentOutOfRangeException(nameof(value));
                     internalPosition = value;
-                    sourceStream.Position = checkValue;
+                    innerStream.Position = checkValue;
                 }
             }
         }
@@ -59,11 +59,11 @@ namespace CriWareFormats.Common
         {
             lock (positionLock)
             {
-                long restore = sourceStream.Position;
-                sourceStream.Position = realPosition + internalPosition;
-                int read = sourceStream.Read(buffer, offset, count);
+                long restore = innerStream.Position;
+                innerStream.Position = realPosition + internalPosition;
+                int read = innerStream.Read(buffer, offset, count);
                 internalPosition += read;
-                sourceStream.Position = restore;
+                innerStream.Position = restore;
                 return read;
             }
         }
@@ -100,12 +100,12 @@ namespace CriWareFormats.Common
 
         public override void SetLength(long value)
         {
-            throw new NotSupportedException();
+            throw new NotImplementedException();
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            throw new NotSupportedException();
+            throw new NotImplementedException();
         }
     }
 }

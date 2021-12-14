@@ -121,7 +121,7 @@ namespace CriWareFormats
 
         public Stream GetWaveSubfileStream(Wave wave)
         {
-            return new IsolatedStream(binaryReader.BaseStream, wave.Offset, wave.Length);
+            return new SpliceStream(binaryReader.BaseStream, wave.Offset, wave.Length);
         }
 
         private static void Fail()
