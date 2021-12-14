@@ -1,0 +1,3 @@
+[submodule "ClHcaSharp"]
+	path = ClHcaSharp
+	url = https://github.com/MarshmallowAndroid/ClHcaSharp
