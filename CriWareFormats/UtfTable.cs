@@ -63,9 +63,9 @@ namespace CriWareFormats
         public object Value;
     }
 
-    public sealed class UtfTable : IDisposable
+    public sealed class UtfTable
     {
-        private readonly BinaryReader binaryReader;
+        private readonly BinaryReaderEndian binaryReader;
         private readonly uint tableOffset;
 
         private readonly uint tableSize;
@@ -91,19 +91,23 @@ namespace CriWareFormats
         private readonly byte[] stringTable;
         private readonly string tableName;
 
-        public UtfTable(Stream utfTableStream, out uint utfTableRows, out string utfTableRowName) :
+        public UtfTable(Stream utfTableStream, out int utfTableRows, out string utfTableRowName) :
             this(utfTableStream, 0, out utfTableRows, out utfTableRowName)
         { }
 
-        public UtfTable(Stream utfTableStream, uint offset, out uint utfTableRows, out string rowName)
+        public UtfTable(Stream utfTableStream, uint offset) :
+            this(utfTableStream, offset, out int _, out string _)
+        { }
+
+        public UtfTable(Stream utfTableStream, uint offset, out int utfTableRows, out string rowName)
         {
-            binaryReader = new BinaryReader(utfTableStream);
+            binaryReader = new BinaryReaderEndian(utfTableStream);
             tableOffset = offset;
 
             binaryReader.BaseStream.Position = offset;
 
             if (!binaryReader.ReadChars(4).SequenceEqual("@UTF".ToCharArray()))
-                throw new InvalidDataException("Invalid magic.");
+                throw new InvalidDataException("Incorrect magic.");
             tableSize = binaryReader.ReadUInt32BE() + 0x08;
             version = binaryReader.ReadUInt16BE();
             rowsOffset = (ushort)(binaryReader.ReadUInt16BE() + 0x08);
@@ -148,7 +152,7 @@ namespace CriWareFormats
 
             schema = new Column[columns];
 
-            BinaryReader bytesReader = new(new MemoryStream(schemaBuffer) { Position = 0 });
+            BinaryReaderEndian bytesReader = new(new MemoryStream(schemaBuffer) { Position = 0 });
             for (int i = 0; i < columns; i++)
             {
                 bytesReader.BaseStream.Position = schemaPos;
@@ -204,7 +208,7 @@ namespace CriWareFormats
                 }
             }
 
-            utfTableRows = rows;
+            utfTableRows = (int)rows;
             rowName = GetStringFromTable(nameOffset);
 
             bytesReader.Dispose();
@@ -238,20 +242,29 @@ namespace CriWareFormats
             result = new();
 
             if (row >= rows || row < 0)
-                throw new ArgumentOutOfRangeException(nameof(row));
+                //throw new ArgumentOutOfRangeException(nameof(row));
+                return false;
             if (column >= columns || column < 0)
-                throw new ArgumentOutOfRangeException(nameof(column));
+                //throw new ArgumentOutOfRangeException(nameof(column));
+                return false;
 
             Column col = schema[column];
             uint dataOffset = 0;
-            BinaryReader bytesReader = null;
+            BinaryReaderEndian bytesReader = null;
 
             result.Type = col.Type;
 
             if (col.Flag.HasFlag(ColumnFlag.Default))
             {
-                bytesReader = new(new MemoryStream(schemaBuffer));
-                bytesReader.BaseStream.Position = col.Offset;
+                if (schemaBuffer != null)
+                {
+                    bytesReader = new(new MemoryStream(schemaBuffer));
+                    bytesReader.BaseStream.Position = col.Offset;
+                }
+                else
+                {
+                    dataOffset = tableOffset + schemaOffset + col.Offset;
+                }
             }
             else if (col.Flag.HasFlag(ColumnFlag.Row))
             {
@@ -294,7 +307,7 @@ namespace CriWareFormats
                 //case ColumnType.Double:
                 //    break;
                 case ColumnType.String:
-                    uint nameOffset = bytesReader.ReadUInt32BE();
+                    uint nameOffset = bytesReader is not null ? bytesReader.ReadUInt32BE() : binaryReader.ReadUInt32BE();
                     if (nameOffset > stringsSize)
                         throw new InvalidDataException("Name offset out of bounds.");
                     result.Value = GetStringFromTable(nameOffset);
@@ -341,13 +354,35 @@ namespace CriWareFormats
             value = (T)result.Value;
 
             if (value is VLData vlData)
+            {
                 vlData.Offset += tableOffset + dataOffset;
+                value = (T)(object)vlData;
+            }
 
             return true;
         }
 
         public bool Query<T>(int row, string columnName, out T value) =>
             Query(row, GetColumn(columnName), out value);
+
+        public bool Query(int row, int column, out uint offset, out uint size)
+        {
+            if (!Query(row, column, out VLData data))
+            {
+                offset = 0;
+                size = 0;
+
+                return false;
+            }
+
+            offset = data.Offset;
+            size = data.Size;
+
+            return true;
+        }
+
+        public bool Query(int row, string columnName, out uint offset, out uint size)
+            => Query(row, GetColumn(columnName), out offset, out size);
 
         private string GetStringFromTable(uint offset)
         {
@@ -376,13 +411,8 @@ namespace CriWareFormats
             return new UtfTable(
                 binaryReader.BaseStream,
                 tableValueData.Offset,
-                out uint _,
+                out int _,
                 out string _);
-        }
-
-        public void Dispose()
-        {
-            binaryReader.Dispose();
         }
     }
 }

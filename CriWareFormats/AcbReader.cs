@@ -21,7 +21,7 @@ namespace CriWareFormats
 
             acbStream.Position = positionOffset;
 
-            UtfTable utfTable = new(acbStream, out uint rows, out string name);
+            UtfTable utfTable = new(acbStream, (uint)offset, out int rows, out string name);
 
             if (rows != 1 || !name.Equals("Header"))
                 throw new InvalidDataException("No Header table.");
@@ -36,6 +36,12 @@ namespace CriWareFormats
         public AwbReader GetAwb()
         {
             return new AwbReader(new SpliceStream(innerStream, awbOffset, awbLength), true);
+        }
+
+        public string GetWaveName(int waveId, int port, bool memory)
+        {
+            innerStream.Position = positionOffset;
+            return AcbNameLoader.LoadWaveName(innerStream, waveId, port, memory);
         }
 
         public void Dispose()

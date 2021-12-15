@@ -12,9 +12,9 @@ namespace CriWareFormats
         public ushort ID { get; set; }
     }
 
-    public class Wave
+    public struct Wave
     {
-        public int WaveID { get; set; }
+        public int WaveId { get; set; }
         public long Offset { get; set; }
         public long Length { get; set; }
     }
@@ -44,7 +44,8 @@ namespace CriWareFormats
 
             binaryReader.BaseStream.Position = positionOffset;
 
-            if (!binaryReader.ReadChars(4).SequenceEqual("AFS2".ToCharArray())) Fail();
+            if (!binaryReader.ReadChars(4).SequenceEqual("AFS2".ToCharArray()))
+                throw new InvalidDataException("Incorrect magic.");
 
             binaryReader.BaseStream.Position += 0x1;
             offsetSize = binaryReader.ReadByte();
@@ -62,7 +63,8 @@ namespace CriWareFormats
                 long waveIdOffset = offset + (subsong - 1) * 0x2;
 
                 binaryReader.BaseStream.Position = waveIdOffset;
-                int waveID = binaryReader.ReadUInt16();
+
+                int waveId = binaryReader.ReadUInt16();
 
                 offset += totalSubsongs * 0x2;
 
@@ -99,7 +101,7 @@ namespace CriWareFormats
 
                 waves.Add(new Wave()
                 {
-                    WaveID = waveID,
+                    WaveId = waveId,
                     Offset = subfileOffset,
                     Length = subfileSize
                 });
