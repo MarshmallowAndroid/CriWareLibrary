@@ -70,57 +70,63 @@ namespace CriWareFormats
         public byte Streaming;
     }
 
-    public static class AcbNameLoader
+    public class AcbNameLoader
     {
-        static Stream acbStream;
+        private Stream acbStream;
 
-        static UtfTable header;
-        static UtfTable cueNames;
+        private UtfTable header;
+        private UtfTable cueNames;
 
-        static BinaryReaderEndian cueReader;
-        static BinaryReaderEndian cueNameReader;
-        static BinaryReaderEndian blockSequenceReader;
-        static BinaryReaderEndian blockReader;
-        static BinaryReaderEndian sequenceReader;
-        static BinaryReaderEndian trackReader;
-        static BinaryReaderEndian trackCommandReader;
-        static BinaryReaderEndian synthReader;
-        static BinaryReaderEndian waveformReader;
+        private BinaryReaderEndian cueReader;
+        private BinaryReaderEndian cueNameReader;
+        private BinaryReaderEndian blockSequenceReader;
+        private BinaryReaderEndian blockReader;
+        private BinaryReaderEndian sequenceReader;
+        private BinaryReaderEndian trackReader;
+        private BinaryReaderEndian trackCommandReader;
+        private BinaryReaderEndian synthReader;
+        private BinaryReaderEndian waveformReader;
 
-        static Cue[] cue;
-        static CueName[] cueName;
-        static BlockSequence[] blockSequence;
-        static Block[] block;
-        static Sequence[] sequence;
-        static Track[] track;
-        static TrackCommand[] trackCommand;
-        static Synth[] synth;
-        static Waveform[] waveform;
+        private Cue[] cue;
+        private CueName[] cueName;
+        private BlockSequence[] blockSequence;
+        private Block[] block;
+        private Sequence[] sequence;
+        private Track[] track;
+        private TrackCommand[] trackCommand;
+        private Synth[] synth;
+        private Waveform[] waveform;
 
-        static int cueRows;
-        static int cueNameRows;
-        static int blockSequenceRows;
-        static int blockRows;
-        static int sequenceRows;
-        static int trackRows;
-        static int trackCommandRows;
-        static int synthRows;
-        static int waveFormRows;
+        private int cueRows;
+        private int cueNameRows;
+        private int blockSequenceRows;
+        private int blockRows;
+        private int sequenceRows;
+        private int trackRows;
+        private int trackCommandRows;
+        private int synthRows;
+        private int waveFormRows;
 
-        static bool isMemory;
-        static int targetWaveId;
-        static int targetPort;
+        private bool isMemory;
+        private int targetWaveId;
+        private int targetPort;
 
-        static int synthDepth;
-        static int sequenceDepth;
+        private int synthDepth;
+        private int sequenceDepth;
 
-        static short cueNameIndex;
-        static string cueNameName;
-        static int awbNameCount;
-        static List<short> awbNameList;
-        static string name;
+        private short cueNameIndex;
+        private string cueNameName;
+        private int awbNameCount;
+        private List<short> awbNameList;
+        private string name;
 
-        static bool OpenUtfSubtable(out BinaryReaderEndian tableReader, out UtfTable table, string tableName, out int rows)
+        public AcbNameLoader(Stream acb)
+        {
+            acbStream = acb;
+            header = new(acb, (uint)acbStream.Position);
+        }
+
+        bool OpenUtfSubtable(out BinaryReaderEndian tableReader, out UtfTable table, string tableName, out int rows)
         {
             if (!header.Query(0, tableName, out VLData data))
                 throw new ArgumentException("Error reading table.");
@@ -131,7 +137,7 @@ namespace CriWareFormats
             return true;
         }
 
-        static void AddAcbName(byte streaming)
+        void AddAcbName(byte streaming)
         {
             if (cueNameName.Length == 0)
                 return;
@@ -157,7 +163,7 @@ namespace CriWareFormats
             awbNameCount++;
         }
 
-        static void PreloadAcbWaveForm()
+        void PreloadAcbWaveForm()
         {
             ref int rows = ref waveFormRows;
 
@@ -198,7 +204,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbWaveForm(ushort index)
+        void LoadAcbWaveForm(ushort index)
         {
             PreloadAcbWaveForm();
 
@@ -221,7 +227,7 @@ namespace CriWareFormats
             return;
         }
 
-        static void PreloadAcbSynth()
+        void PreloadAcbSynth()
         {
             ref int rows = ref synthRows;
 
@@ -244,7 +250,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbSynth(ushort index)
+        void LoadAcbSynth(ushort index)
         {
             PreloadAcbSynth();
 
@@ -294,7 +300,7 @@ namespace CriWareFormats
             synthDepth--;
         }
 
-        static void LoadAcbCommandTlvs(BinaryReaderEndian reader, uint commandOffset, uint commandSize)
+        void LoadAcbCommandTlvs(BinaryReaderEndian reader, uint commandOffset, uint commandSize)
         {
             uint pos = 0;
             uint maxPos = commandSize;
@@ -345,7 +351,7 @@ namespace CriWareFormats
             }
         }
 
-        static void PreloadAcbTrackCommand()
+        void PreloadAcbTrackCommand()
         {
             ref int rows = ref trackCommandRows;
 
@@ -369,7 +375,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbTrackCommand(ushort index)
+        void LoadAcbTrackCommand(ushort index)
         {
             PreloadAcbTrackCommand();
 
@@ -382,7 +388,7 @@ namespace CriWareFormats
                 trackCommand[index].CommandSize);
         }
 
-        static void PreloadAcbTrack()
+        void PreloadAcbTrack()
         {
             ref int rows = ref trackRows;
 
@@ -403,7 +409,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbTrack(ushort index)
+        void LoadAcbTrack(ushort index)
         {
             PreloadAcbTrack();
 
@@ -418,7 +424,7 @@ namespace CriWareFormats
             LoadAcbTrackCommand(r.EventIndex);
         }
 
-        static void PreloadAcbSequence()
+        void PreloadAcbSequence()
         {
             ref int rows = ref sequenceRows;
 
@@ -443,7 +449,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbSequence(uint index)
+        void LoadAcbSequence(uint index)
         {
             PreloadAcbSequence();
 
@@ -476,12 +482,12 @@ namespace CriWareFormats
             sequenceDepth--;
         }
 
-        static void PreloadAcbBlock()
+        void PreloadAcbBlock()
         {
             ref int rows = ref blockRows;
 
             if (rows != 0) return;
-            if (!OpenUtfSubtable(out sequenceReader, out UtfTable table, "BlockTable", out rows))
+            if (!OpenUtfSubtable(out blockReader, out UtfTable table, "BlockTable", out rows))
                 throw new Exception("Failure opening Block table.");
             if (rows == 0) return;
 
@@ -500,7 +506,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbBlock(ushort index)
+        void LoadAcbBlock(ushort index)
         {
             PreloadAcbBlock();
 
@@ -521,7 +527,7 @@ namespace CriWareFormats
             }
         }
 
-        static void PreloadAcbBlockSequence()
+        void PreloadAcbBlockSequence()
         {
             ref int rows = ref blockSequenceRows;
 
@@ -548,7 +554,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbBlockSequence(ushort index)
+        void LoadAcbBlockSequence(ushort index)
         {
             PreloadAcbBlockSequence();
 
@@ -580,7 +586,7 @@ namespace CriWareFormats
             }
         }
 
-        static void PreloadAcbCue()
+        void PreloadAcbCue()
         {
             ref int rows = ref cueRows;
 
@@ -603,7 +609,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbCue(ushort index)
+        void LoadAcbCue(ushort index)
         {
             PreloadAcbCue();
 
@@ -635,7 +641,7 @@ namespace CriWareFormats
             }
         }
 
-        static void PreloadAcbCueName()
+        void PreloadAcbCueName()
         {
             ref UtfTable table = ref cueNames;
             ref int rows = ref cueNameRows;
@@ -659,7 +665,7 @@ namespace CriWareFormats
             }
         }
 
-        static void LoadAcbCueName(ushort index)
+        void LoadAcbCueName(ushort index)
         {
             PreloadAcbCueName();
 
@@ -674,11 +680,8 @@ namespace CriWareFormats
             LoadAcbCue(r.CueIndex);
         }
 
-        public static string LoadWaveName(Stream acb, int waveId, int port, bool memory)
+        public string LoadWaveName(Stream acb, int waveId, int port, bool memory)
         {
-            acbStream = acb;
-            header = new(acb, (uint)acbStream.Position);
-
             targetWaveId = waveId;
             targetPort = port;
             isMemory = memory;

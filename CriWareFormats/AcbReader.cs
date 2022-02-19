@@ -7,16 +7,18 @@ namespace CriWareFormats
 {
     public sealed class AcbReader : IDisposable
     {
-        private readonly Stream innerStream;
+        private readonly Stream outerStream;
         private readonly long positionOffset;
         private readonly uint awbOffset;
         private readonly uint awbLength;
+
+        private readonly AcbNameLoader acbNameLoader;
 
         public AcbReader(Stream acbStream) : this(acbStream, 0) { }
 
         public AcbReader(Stream acbStream, long offset)
         {
-            innerStream = acbStream;
+            outerStream = acbStream;
             positionOffset = offset;
 
             acbStream.Position = positionOffset;
@@ -31,22 +33,25 @@ namespace CriWareFormats
 
             awbOffset = awbValueData.Offset;
             awbLength = awbValueData.Size;
+
+            outerStream.Position = positionOffset;
+            acbNameLoader = new AcbNameLoader(outerStream);
         }
 
         public AwbReader GetAwb()
         {
-            return new AwbReader(new SpliceStream(innerStream, awbOffset, awbLength), true);
+            return new AwbReader(new SpliceStream(outerStream, awbOffset, awbLength), true);
         }
 
         public string GetWaveName(int waveId, int port, bool memory)
         {
-            innerStream.Position = positionOffset;
-            return AcbNameLoader.LoadWaveName(innerStream, waveId, port, memory);
+            outerStream.Position = positionOffset;
+            return acbNameLoader.LoadWaveName(outerStream, waveId, port, memory);
         }
 
         public void Dispose()
         {
-            innerStream.Dispose();
+            outerStream.Dispose();
         }
     }
 }
