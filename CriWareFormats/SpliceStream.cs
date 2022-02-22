@@ -45,7 +45,8 @@ namespace CriWareFormats
                     long checkValue = value + realPosition;
                     if (value < 0 || value >= Length) throw new ArgumentOutOfRangeException(nameof(value));
                     internalPosition = value;
-                    innerStream.Position = checkValue;
+
+                    if (innerStream.CanSeek) innerStream.Position = checkValue;
                 }
             }
         }
@@ -59,12 +60,16 @@ namespace CriWareFormats
         {
             lock (positionLock)
             {
-                long restore = innerStream.Position;
-                innerStream.Position = realPosition + internalPosition;
-                int read = innerStream.Read(buffer, offset, count);
-                internalPosition += read;
-                innerStream.Position = restore;
-                return read;
+                if (innerStream.CanRead)
+                {
+                    long restore = innerStream.Position;
+                    innerStream.Position = realPosition + internalPosition;
+                    int read = innerStream.Read(buffer, offset, count);
+                    internalPosition += read;
+                    innerStream.Position = restore;
+                    return read;
+                }
+                else return 0;
             }
         }
 
