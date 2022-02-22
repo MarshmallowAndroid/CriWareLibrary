@@ -80,7 +80,12 @@ namespace Test
 
                 for (int i = 0; i < count / info.ChannelCount / sizeof(short); i++)
                 {
-                    if (Position >= Length) break;
+                    if (samplePosition - info.EncoderDelay >= info.LoopEndSample && Loop)
+                    {
+                        samplePosition = info.LoopStartSample + info.EncoderDelay;
+                        FillBuffer(samplePosition);
+                    }
+                    else if (Position >= Length) break;
 
                     if (samplePosition % info.SamplesPerBlock == 0) FillBuffer(samplePosition);
 
@@ -94,12 +99,6 @@ namespace Test
                     }
 
                     samplePosition++;
-
-                    if (samplePosition - info.EncoderDelay >= info.LoopEndSample && Loop)
-                    {
-                        samplePosition = info.LoopStartSample + info.EncoderDelay;
-                        FillBuffer(samplePosition);
-                    }
                 }
 
                 return read;
