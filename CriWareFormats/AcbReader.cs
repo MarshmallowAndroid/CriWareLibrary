@@ -46,7 +46,7 @@ namespace CriWareFormats
         public string GetWaveName(int waveId, int port, bool memory)
         {
             outerStream.Position = positionOffset;
-            return acbNameLoader.LoadWaveName(outerStream, waveId, port, memory);
+            return acbNameLoader.LoadWaveName(waveId, port, memory);
         }
 
         public void Dispose()
