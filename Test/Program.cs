@@ -11,24 +11,21 @@ namespace Test
     {
         static void Main(string[] args)
         {
-            string acbPath = @"C:\Users\jacob\Desktop\CueSheet_BGM.acb";
-            string awbPath1 = @"C:\Users\jacob\Desktop\CueSheet_BGM.awb";
-            string awbPath2 = @"C:\Users\jacob\Desktop\CueSheet_BGM_DLC01.awb";
+            string awbPath = @"C:\\Users\\jacob\\AppData\\LocalLow\\Cygames\\umamusume\\dat\\KI\\KIJ3CC7ROKZFDGJWCPCKSQFBA3GWJBWV";
+            var awb = new AwbReader(File.OpenRead(awbPath));
 
-            var utf = new UtfTable(File.OpenRead(acbPath), out uint _, out string _);
+            //Console.ReadKey();
 
-            var acb = new AcbReader(File.OpenRead(acbPath));
-            var awb = new AwbReader(File.OpenRead(awbPath1));
-            var hcaFile = awb.GetWaveSubfileStream(awb.Waves[18]);
+            var hcaFile = awb.GetWaveSubfileStream(awb.Waves[0]);
             // good stuff are 0, 8, 18, 40, 51
 
             using var waveOut = new WaveOutEvent();
 
-            ulong key = 0x1E03B570B6145D1D;
-            ushort subkey = awb.Subkey;
-            ulong mixKey = key * ((ulong)subkey << 16 | (ushort)~subkey + 2u);
+            //ulong key = 0x1E03B570B6145D1D;
+            //ushort subkey = awb.Subkey;
+            //ulong mixKey = key * ((ulong)subkey << 16 | (ushort)~subkey + 2u);
 
-            using var hcaWaveStream = new HcaWaveStream(hcaFile, mixKey);
+            using var hcaWaveStream = new HcaWaveStream(hcaFile, 0x1d2f8d3fbb9c5985);
             //hcaWaveStream.Position = 0;
 
             //hcaWaveStream.Loop = false;
@@ -37,10 +34,10 @@ namespace Test
 
             //WaveFileWriter.CreateWaveFile("test.wav", hcaWaveStream);
 
-            hcaWaveStream.Loop = true;
+            //hcaWaveStream.Loop = true;
             var hcaInfo = hcaWaveStream.Info;
 
-            //hcaWaveStream.Position = (hcaInfo.LoopEndSample - 100000) * 4;
+            hcaWaveStream.Position = (hcaInfo.LoopEndSample - 100000) * 4;
             //hcaWaveStream.Position = 0;
 
             waveOut.Init(hcaWaveStream);
