@@ -9,7 +9,7 @@ namespace CriWareFormats
     internal class Row
     {
         public string Name { get; set; }
-        public ushort ID { get; set; }
+        public ushort Id { get; set; }
     }
 
     public struct Wave
