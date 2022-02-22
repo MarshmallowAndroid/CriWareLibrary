@@ -680,7 +680,7 @@ namespace CriWareFormats
             LoadAcbCue(r.CueIndex);
         }
 
-        public string LoadWaveName(Stream acb, int waveId, int port, bool memory)
+        public string LoadWaveName(int waveId, int port, bool memory)
         {
             targetWaveId = waveId;
             targetPort = port;
