@@ -24,8 +24,9 @@ namespace CriWareFormats
         private readonly BinaryReader binaryReader;
 
         private readonly byte offsetSize;
+        private readonly ushort waveIdAlignment;
         private readonly int totalSubsongs;
-        private readonly ushort alignment;
+        private readonly ushort offsetAlignment;
         private readonly ushort subkey;
 
         private readonly List<Row> cueNames;
@@ -49,9 +50,9 @@ namespace CriWareFormats
 
             binaryReader.BaseStream.Position += 0x1;
             offsetSize = binaryReader.ReadByte();
-            binaryReader.BaseStream.Position += 0x2;
+            waveIdAlignment = binaryReader.ReadUInt16();
             totalSubsongs = binaryReader.ReadInt32();
-            alignment = binaryReader.ReadUInt16();
+            offsetAlignment = binaryReader.ReadUInt16();
             subkey = binaryReader.ReadUInt16();
 
             waves = new List<Wave>(totalSubsongs);
@@ -60,13 +61,13 @@ namespace CriWareFormats
             {
                 long offset = 0x10;
 
-                long waveIdOffset = offset + (subsong - 1) * 0x2;
+                long waveIdOffset = offset + (subsong - 1) * waveIdAlignment;
 
                 binaryReader.BaseStream.Position = waveIdOffset;
 
                 int waveId = binaryReader.ReadUInt16();
 
-                offset += totalSubsongs * 0x2;
+                offset += totalSubsongs * waveIdAlignment;
 
                 long subfileOffset = 0;
                 long subfileNext = 0;
@@ -93,10 +94,10 @@ namespace CriWareFormats
                         break;
                 }
 
-                subfileOffset += subfileOffset % alignment > 0 ?
-                    alignment - subfileOffset % alignment : 0;
-                subfileNext += subfileNext % alignment > 0 && subfileNext < fileSize ?
-                    alignment - subfileNext % alignment : 0;
+                subfileOffset += subfileOffset % offsetAlignment > 0 ?
+                    offsetAlignment - subfileOffset % offsetAlignment : 0;
+                subfileNext += subfileNext % offsetAlignment > 0 && subfileNext < fileSize ?
+                    offsetAlignment - subfileNext % offsetAlignment : 0;
                 long subfileSize = subfileNext - subfileOffset;
 
                 waves.Add(new Wave()
