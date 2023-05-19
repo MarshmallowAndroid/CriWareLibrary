@@ -45,7 +45,7 @@ namespace CriWareFormats
 
             binaryReader.BaseStream.Position = positionOffset;
 
-            if (!binaryReader.ReadChars(4).SequenceEqual("AFS2".ToCharArray()))
+            if (!binaryReader.ReadChars(4).SequenceEqual("AFS2"))
                 throw new InvalidDataException("Incorrect magic.");
 
             binaryReader.BaseStream.Position += 0x1;

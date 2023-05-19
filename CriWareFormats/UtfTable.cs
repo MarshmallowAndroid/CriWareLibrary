@@ -106,7 +106,7 @@ namespace CriWareFormats
 
             binaryReader.BaseStream.Position = offset;
 
-            if (!binaryReader.ReadChars(4).SequenceEqual("@UTF".ToCharArray()))
+            if (!binaryReader.ReadChars(4).SequenceEqual("@UTF"))
                 throw new InvalidDataException("Incorrect magic.");
             tableSize = binaryReader.ReadUInt32BE() + 0x08;
             version = binaryReader.ReadUInt16BE();
