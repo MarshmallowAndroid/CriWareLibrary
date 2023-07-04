@@ -16,6 +16,7 @@ namespace CriWareFormats
 
     struct Cue
     {
+        public uint Id;
         public byte ReferenceType;
         public ushort ReferenceIndex;
     }
@@ -70,7 +71,7 @@ namespace CriWareFormats
         public byte Streaming;
     }
 
-    public class AcbNameLoader
+    public class AcbParser
     {
         private Stream acbStream;
 
@@ -110,6 +111,7 @@ namespace CriWareFormats
         private bool isMemory;
         private int targetWaveId;
         private int targetPort;
+        private int targetCueId;
 
         private int synthDepth;
         private int sequenceDepth;
@@ -120,7 +122,11 @@ namespace CriWareFormats
         private List<short> awbNameList;
         private string name;
 
-        public AcbNameLoader(Stream acb)
+        private uint currentCueId;
+        private int waveIdFromCueId;
+        private bool cueOnly;
+
+        public AcbParser(Stream acb)
         {
             acbStream = acb;
             header = new(acb, (uint)acbStream.Position);
@@ -212,6 +218,11 @@ namespace CriWareFormats
                 throw new ArgumentOutOfRangeException(nameof(index));
 
             ref Waveform r = ref waveform[index];
+
+            if (currentCueId == targetCueId)
+                waveIdFromCueId = r.Id;
+
+            if (cueOnly) return;
 
             if (r.Id != targetWaveId)
                 return;
@@ -597,6 +608,7 @@ namespace CriWareFormats
 
             cue = new Cue[rows];
 
+            int cCueId = table.GetColumn("CueId");
             int cReferenceType = table.GetColumn("ReferenceType");
             int cReferenceIndex = table.GetColumn("ReferenceIndex");
 
@@ -604,6 +616,7 @@ namespace CriWareFormats
             {
                 ref Cue r = ref cue[i];
 
+                table.Query(i, cCueId, out r.Id);
                 table.Query(i, cReferenceType, out r.ReferenceType);
                 table.Query(i, cReferenceIndex, out r.ReferenceIndex);
             }
@@ -617,6 +630,8 @@ namespace CriWareFormats
                 throw new ArgumentOutOfRangeException(nameof(index));
 
             ref Cue r = ref cue[index];
+
+            currentCueId = r.Id;
 
             switch (r.ReferenceType)
             {
@@ -697,6 +712,23 @@ namespace CriWareFormats
             }
 
             return name;
+        }
+
+        public int WaveIdFromCueId(int cueId)
+        {
+            targetCueId = cueId;
+
+            cueOnly = true;
+
+            PreloadAcbCue();
+            for (ushort i = 0; i < cueRows; i++)
+            {
+                LoadAcbCue(i);
+            }
+
+            cueOnly = false;
+
+            return waveIdFromCueId;
         }
     }
 }

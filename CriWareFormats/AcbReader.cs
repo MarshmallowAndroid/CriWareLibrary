@@ -12,7 +12,7 @@ namespace CriWareFormats
         private readonly uint awbOffset;
         private readonly uint awbLength;
 
-        private readonly AcbNameLoader acbNameLoader;
+        private readonly AcbParser acbParser;
 
         public AcbReader(Stream acbStream) : this(acbStream, 0) { }
 
@@ -34,8 +34,8 @@ namespace CriWareFormats
             awbOffset = awbValueData.Offset;
             awbLength = awbValueData.Size;
 
-            outerStream.Position = offset;
-            acbNameLoader = new AcbNameLoader(outerStream);
+            outerStream.Position = positionOffset;
+            acbParser = new AcbParser(outerStream);
         }
 
         public AwbReader GetAwb()
@@ -46,7 +46,13 @@ namespace CriWareFormats
         public string GetWaveName(int waveId, int port, bool memory)
         {
             outerStream.Position = offset;
-            return acbNameLoader.LoadWaveName(waveId, port, memory);
+            return acbParser.LoadWaveName(waveId, port, memory);
+        }
+
+        public int GetWaveIdFromCueId(int cueId)
+        {
+            outerStream.Position = offset;
+            return acbParser.WaveIdFromCueId(cueId);
         }
 
         public void Dispose()
