@@ -1,9 +1,9 @@
-﻿using CriWareFormats.Common;
+﻿using CriWareLibrary.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace CriWareFormats
+namespace CriWareLibrary
 {
     public sealed class AcbReader : IDisposable
     {

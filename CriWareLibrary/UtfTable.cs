@@ -1,10 +1,10 @@
-﻿using CriWareFormats.Common;
+﻿using CriWareLibrary.Common;
 using System;
 using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace CriWareFormats
+namespace CriWareLibrary
 {
     [Flags]
     public enum ColumnFlag : byte

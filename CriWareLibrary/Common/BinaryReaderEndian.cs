@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace CriWareFormats.Common
+namespace CriWareLibrary.Common
 {
     public class BinaryReaderEndian : BinaryReader
 

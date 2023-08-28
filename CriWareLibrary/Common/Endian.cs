@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace CriWareFormats.Common
+namespace CriWareLibrary.Common
 {
     public static class Endian
     {

@@ -1,10 +1,10 @@
-﻿using CriWareFormats.Common;
+﻿using CriWareLibrary.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace CriWareFormats
+namespace CriWareLibrary
 {
     internal class Row
     {

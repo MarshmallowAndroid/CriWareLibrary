@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace CriWareFormats
+namespace CriWareLibrary
 {
     public class SpliceStream : Stream
     {
