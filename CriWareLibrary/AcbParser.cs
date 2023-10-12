@@ -76,27 +76,27 @@ namespace CriWareLibrary
         private Stream acbStream;
 
         private UtfTable header;
-        private UtfTable cueNames;
+        private UtfTable? cueNames;
 
-        private BinaryReaderEndian cueReader;
-        private BinaryReaderEndian cueNameReader;
-        private BinaryReaderEndian blockSequenceReader;
-        private BinaryReaderEndian blockReader;
-        private BinaryReaderEndian sequenceReader;
-        private BinaryReaderEndian trackReader;
-        private BinaryReaderEndian trackCommandReader;
-        private BinaryReaderEndian synthReader;
-        private BinaryReaderEndian waveformReader;
+        private BinaryReaderEndian? cueReader;
+        private BinaryReaderEndian? cueNameReader;
+        private BinaryReaderEndian? blockSequenceReader;
+        private BinaryReaderEndian? blockReader;
+        private BinaryReaderEndian? sequenceReader;
+        private BinaryReaderEndian? trackReader;
+        private BinaryReaderEndian? trackCommandReader;
+        private BinaryReaderEndian? synthReader;
+        private BinaryReaderEndian? waveformReader;
 
-        private Cue[] cue;
-        private CueName[] cueName;
-        private BlockSequence[] blockSequence;
-        private Block[] block;
-        private Sequence[] sequence;
-        private Track[] track;
-        private TrackCommand[] trackCommand;
-        private Synth[] synth;
-        private Waveform[] waveform;
+        private Cue[]? cue;
+        private CueName[]? cueName;
+        private BlockSequence[]? blockSequence;
+        private Block[]? block;
+        private Sequence[]? sequence;
+        private Track[]? track;
+        private TrackCommand[]? trackCommand;
+        private Synth[]? synth;
+        private Waveform[]? waveform;
 
         private int cueRows;
         private int cueNameRows;
@@ -117,10 +117,10 @@ namespace CriWareLibrary
         private int sequenceDepth;
 
         private short cueNameIndex;
-        private string cueNameName;
+        private string cueNameName = "";
         private int awbNameCount;
-        private List<short> awbNameList;
-        private string name;
+        private List<short> awbNameList = new();
+        private string? name;
 
         private uint currentCueId;
         private int waveIdFromCueId;
@@ -217,6 +217,8 @@ namespace CriWareLibrary
             if (index > waveFormRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
 
+            if (waveform is null) return;
+
             ref Waveform r = ref waveform[index];
 
             if (currentCueId == targetCueId)
@@ -267,6 +269,9 @@ namespace CriWareLibrary
 
             if (index > synthRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
+
+            if (synth is null) return;
+            if (synthReader is null) return;
 
             ref Synth r = ref synth[index];
 
@@ -393,6 +398,9 @@ namespace CriWareLibrary
             if (index > trackCommandRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
 
+            if (trackCommandReader is null) return;
+            if (trackCommand is null) return;
+
             LoadAcbCommandTlvs(
                 trackCommandReader,
                 trackCommand[index].CommandOffset,
@@ -426,6 +434,8 @@ namespace CriWareLibrary
 
             if (index > trackRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
+
+            if (track is null) return;
 
             ref Track r = ref track[index];
 
@@ -466,6 +476,9 @@ namespace CriWareLibrary
 
             if (index > sequenceRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
+
+            if (sequence is null) return;
+            if (sequenceReader is null) return;
 
             ref Sequence r = ref sequence[index];
 
@@ -524,6 +537,9 @@ namespace CriWareLibrary
             if (index > blockRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
 
+            if (block is null) return;
+            if (blockReader is null) return;
+
             ref Block r = ref block[index];
 
             if (r.NumTracks * 2 > r.TrackIndexSize)
@@ -571,6 +587,9 @@ namespace CriWareLibrary
 
             if (index > blockSequenceRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
+
+            if (blockSequence is null) return;
+            if (blockSequenceReader is null) return;
 
             ref BlockSequence r = ref blockSequence[index];
 
@@ -629,6 +648,8 @@ namespace CriWareLibrary
             if (index > cueRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
 
+            if (cue is null) return;
+
             ref Cue r = ref cue[index];
 
             currentCueId = r.Id;
@@ -658,7 +679,7 @@ namespace CriWareLibrary
 
         void PreloadAcbCueName()
         {
-            ref UtfTable table = ref cueNames;
+            ref UtfTable? table = ref cueNames;
             ref int rows = ref cueNameRows;
 
             if (rows != 0) return;
@@ -676,7 +697,8 @@ namespace CriWareLibrary
                 ref CueName r = ref cueName[i];
 
                 table.Query(i, cCueIndex, out r.CueIndex);
-                table.Query(i, cCueName, out r.Name);
+                table.Query(i, cCueName, out string? name);
+                r.Name = name ?? "";
             }
         }
 
@@ -686,6 +708,8 @@ namespace CriWareLibrary
 
             if (index > cueNameRows)
                 throw new ArgumentOutOfRangeException(nameof(index));
+
+            if (cueName is null) return;
 
             ref CueName r = ref cueName[index];
 
@@ -703,7 +727,6 @@ namespace CriWareLibrary
 
             name = "";
             awbNameCount = 0;
-            awbNameList = new();
 
             PreloadAcbCueName();
             for (ushort i = 0; i < cueNameRows; i++)

@@ -250,7 +250,7 @@ namespace CriWareLibrary
 
             Column col = schema[column];
             uint dataOffset = 0;
-            BinaryReaderEndian bytesReader = null;
+            BinaryReaderEndian? bytesReader = null;
 
             result.Type = col.Type;
 
@@ -339,13 +339,13 @@ namespace CriWareLibrary
             return true;
         }
 
-        public bool Query<T>(int row, int column, out T value)
+        public bool Query<T>(int row, int column, out T? value)
         {
             bool valid = Query(row, column, out Result result);
 
-            bool enumParseResult = Enum.TryParse(typeof(ColumnType), typeof(T).Name, out object type);
+            bool enumParseResult = Enum.TryParse(typeof(ColumnType), typeof(T).Name, out object? type);
 
-            if (!valid || !enumParseResult || result.Type != (ColumnType)type)
+            if (!valid || !enumParseResult || (type is not null && result.Type != (ColumnType)type))
             {
                 value = default;
                 return false;
@@ -362,7 +362,7 @@ namespace CriWareLibrary
             return true;
         }
 
-        public bool Query<T>(int row, string columnName, out T value) =>
+        public bool Query<T>(int row, string columnName, out T? value) =>
             Query(row, GetColumn(columnName), out value);
 
         public bool Query(int row, int column, out uint offset, out uint size)
