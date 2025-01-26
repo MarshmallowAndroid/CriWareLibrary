@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,40 +14,41 @@ namespace CriWareLibrary.Common
         {
         }
 
-        public short ReadInt16BE()
-        {
-            ushort le = base.ReadUInt16();
-            return (short)BinaryPrimitives.ReverseEndianness(le);
-        }
-
         public ushort ReadUInt16BE()
         {
             ushort le = base.ReadUInt16();
-            return BinaryPrimitives.ReverseEndianness(le);
+            return (ushort)(((le & 0x00FF) << 8) | ((le & 0xFF00) >> 8));
         }
 
-        public int ReadInt32BE()
-        {
-            uint le = base.ReadUInt32();
-            return (int)BinaryPrimitives.ReverseEndianness(le);
-        }
+        public short ReadInt16BE() => (short)ReadUInt16BE();
 
         public uint ReadUInt32BE()
         {
             uint le = base.ReadUInt32();
-            return BinaryPrimitives.ReverseEndianness(le);
+            return ((le & 0x000000FF) << 24)
+                | ((le & 0x0000FF00) << 8)
+                | ((le & 0x00FF0000) >> 8)
+                | ((le & 0xFF000000) >> 24);
         }
 
-        public long ReadInt64BE()
-        {
-            ulong le = base.ReadUInt64();
-            return (long)BinaryPrimitives.ReverseEndianness(le);
-        }
+        public int ReadInt32BE() => (int)ReadUInt32BE();
 
         public ulong ReadUInt64BE()
         {
             ulong le = base.ReadUInt64();
-            return BinaryPrimitives.ReverseEndianness(le);
+            return ((le & 0x00000000000000FF) << 56)
+                | ((le & 0x000000000000FF00) << 40)
+                | ((le & 0x0000000000FF0000) << 24)
+                | ((le & 0x00000000FF000000) << 8)
+                | ((le & 0x000000FF00000000) >> 8)
+                | ((le & 0x0000FF0000000000) >> 24)
+                | ((le & 0x00FF000000000000) >> 40)
+                | ((le & 0xFF00000000000000) >> 56);
+        }
+
+        public long ReadInt64BE()
+        {
+            return (long)ReadUInt64BE();
         }
 
         public float ReadSingleBE()

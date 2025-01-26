@@ -76,27 +76,27 @@ namespace CriWareLibrary
         private Stream acbStream;
 
         private UtfTable header;
-        private UtfTable? cueNames;
+        private UtfTable cueNames;
 
-        private BinaryReaderEndian? cueReader;
-        private BinaryReaderEndian? cueNameReader;
-        private BinaryReaderEndian? blockSequenceReader;
-        private BinaryReaderEndian? blockReader;
-        private BinaryReaderEndian? sequenceReader;
-        private BinaryReaderEndian? trackReader;
-        private BinaryReaderEndian? trackCommandReader;
-        private BinaryReaderEndian? synthReader;
-        private BinaryReaderEndian? waveformReader;
+        private BinaryReaderEndian cueReader;
+        private BinaryReaderEndian cueNameReader;
+        private BinaryReaderEndian blockSequenceReader;
+        private BinaryReaderEndian blockReader;
+        private BinaryReaderEndian sequenceReader;
+        private BinaryReaderEndian trackReader;
+        private BinaryReaderEndian trackCommandReader;
+        private BinaryReaderEndian synthReader;
+        private BinaryReaderEndian waveformReader;
 
-        private Cue[]? cue;
-        private CueName[]? cueName;
-        private BlockSequence[]? blockSequence;
-        private Block[]? block;
-        private Sequence[]? sequence;
-        private Track[]? track;
-        private TrackCommand[]? trackCommand;
-        private Synth[]? synth;
-        private Waveform[]? waveform;
+        private Cue[] cue;
+        private CueName[] cueName;
+        private BlockSequence[] blockSequence;
+        private Block[] block;
+        private Sequence[] sequence;
+        private Track[] track;
+        private TrackCommand[] trackCommand;
+        private Synth[] synth;
+        private Waveform[] waveform;
 
         private int cueRows;
         private int cueNameRows;
@@ -119,8 +119,8 @@ namespace CriWareLibrary
         private short cueNameIndex;
         private string cueNameName = "";
         private int awbNameCount;
-        private List<short> awbNameList = new();
-        private string? name;
+        private List<short> awbNameList = new List<short>();
+        private string name;
 
         private uint currentCueId;
         private int waveIdFromCueId;
@@ -129,7 +129,7 @@ namespace CriWareLibrary
         public AcbParser(Stream acb)
         {
             acbStream = acb;
-            header = new(acb, (uint)acbStream.Position);
+            header = new UtfTable(acb, (uint)acbStream.Position);
         }
 
         bool OpenUtfSubtable(out BinaryReaderEndian tableReader, out UtfTable table, string tableName, out int rows)
@@ -137,8 +137,8 @@ namespace CriWareLibrary
             if (!header.Query(0, tableName, out VLData data))
                 throw new ArgumentException("Error reading table.");
 
-            tableReader = new(acbStream);
-            table = new(tableReader.BaseStream, data.Offset, out rows, out string _);
+            tableReader = new BinaryReaderEndian(acbStream);
+            table = new UtfTable(tableReader.BaseStream, data.Offset, out rows, out string _);
 
             return true;
         }
@@ -679,7 +679,7 @@ namespace CriWareLibrary
 
         void PreloadAcbCueName()
         {
-            ref UtfTable? table = ref cueNames;
+            ref UtfTable table = ref cueNames;
             ref int rows = ref cueNameRows;
 
             if (rows != 0) return;
@@ -697,7 +697,7 @@ namespace CriWareLibrary
                 ref CueName r = ref cueName[i];
 
                 table.Query(i, cCueIndex, out r.CueIndex);
-                table.Query(i, cCueName, out string? name);
+                table.Query(i, cCueName, out string name);
                 r.Name = name ?? "";
             }
         }

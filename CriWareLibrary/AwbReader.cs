@@ -8,7 +8,7 @@ namespace CriWareLibrary
 {
     internal class Row
     {
-        public string? Name { get; set; }
+        public string Name { get; set; }
         public ushort Id { get; set; }
     }
 

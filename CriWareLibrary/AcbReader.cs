@@ -23,7 +23,7 @@ namespace CriWareLibrary
 
             acbStream.Position = offset;
 
-            UtfTable utfTable = new(acbStream, (uint)offset, out int rows, out string name);
+            UtfTable utfTable = new UtfTable(acbStream, (uint)offset, out int rows, out string name);
 
             if (rows != 1 || !name.Equals("Header"))
                 throw new InvalidDataException("No Header table.");

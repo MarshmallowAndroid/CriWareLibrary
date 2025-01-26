@@ -10,7 +10,7 @@ namespace CriWareLibrary
 
         private long internalPosition;
 
-        private readonly object positionLock = new();
+        private readonly object positionLock = new object();
 
         public SpliceStream(Stream sourceStream, long offset, long length)
         {

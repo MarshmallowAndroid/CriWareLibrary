@@ -152,7 +152,7 @@ namespace CriWareLibrary
 
             schema = new Column[columns];
 
-            BinaryReaderEndian bytesReader = new(new MemoryStream(schemaBuffer) { Position = 0 });
+            BinaryReaderEndian bytesReader = new BinaryReaderEndian(new MemoryStream(schemaBuffer) { Position = 0 });
             for (int i = 0; i < columns; i++)
             {
                 bytesReader.BaseStream.Position = schemaPos;
@@ -166,7 +166,7 @@ namespace CriWareLibrary
 
                 bytesReader.BaseStream.Position = schemaPos;
 
-                schema[i] = new()
+                schema[i] = new Column()
                 {
                     Flag = (ColumnFlag)(info & 0xF0),
                     Type = (ColumnType)(info & 0x0F),
@@ -180,14 +180,31 @@ namespace CriWareLibrary
                      schema[i].Flag.HasFlag(ColumnFlag.Undefined))
                     throw new InvalidDataException("Unknown column flag combo found.");
 
-                uint valueSize = schema[i].Type switch
+                uint valueSize;
+                switch (schema[i].Type)
                 {
-                    ColumnType.Byte or ColumnType.SByte => 0x1,
-                    ColumnType.UInt16 or ColumnType.Int16 => 0x2,
-                    ColumnType.UInt32 or ColumnType.Int32 or ColumnType.Float or ColumnType.String => 0x4,
-                    ColumnType.UInt64 or ColumnType.Int64 or ColumnType.VLData => 0x8,
-                    _ => throw new InvalidDataException("Invalid column type."),
-                };
+                    case ColumnType.Byte:
+                    case ColumnType.SByte:
+                        valueSize = 0x1;
+                        break;
+                    case ColumnType.UInt16:
+                    case ColumnType.Int16:
+                        valueSize = 0x2;
+                        break;
+                    case ColumnType.UInt32:
+                    case ColumnType.Int32:
+                    case ColumnType.Float:
+                    case ColumnType.String:
+                        valueSize = 0x4;
+                        break;
+                    case ColumnType.UInt64:
+                    case ColumnType.Int64:
+                    case ColumnType.VLData:
+                        valueSize = 0x8;
+                        break;
+                    default:
+                        throw new InvalidDataException("Invalid column type.");
+                }
 
                 if (schema[i].Flag.HasFlag(ColumnFlag.Name))
                     schema[i].Name = GetStringFromTable(nameOffset);
@@ -239,7 +256,7 @@ namespace CriWareLibrary
 
         private bool Query(int row, int column, out Result result)
         {
-            result = new();
+            result = new Result();
 
             if (row >= rows || row < 0)
                 //throw new ArgumentOutOfRangeException(nameof(row));
@@ -250,7 +267,7 @@ namespace CriWareLibrary
 
             Column col = schema[column];
             uint dataOffset = 0;
-            BinaryReaderEndian? bytesReader = null;
+            BinaryReaderEndian bytesReader = null;
 
             result.Type = col.Type;
 
@@ -258,7 +275,7 @@ namespace CriWareLibrary
             {
                 if (schemaBuffer != null)
                 {
-                    bytesReader = new(new MemoryStream(schemaBuffer));
+                    bytesReader = new BinaryReaderEndian(new MemoryStream(schemaBuffer));
                     bytesReader.BaseStream.Position = col.Offset;
                 }
                 else
@@ -278,42 +295,42 @@ namespace CriWareLibrary
             switch (col.Type)
             {
                 case ColumnType.Byte:
-                    result.Value = bytesReader is not null ? bytesReader.ReadByte() : binaryReader.ReadByte();
+                    result.Value = bytesReader != null ? bytesReader.ReadByte() : binaryReader.ReadByte();
                     break;
                 case ColumnType.SByte:
-                    result.Value = bytesReader is not null ? bytesReader.ReadSByte() : binaryReader.ReadSByte();
+                    result.Value = bytesReader != null ? bytesReader.ReadSByte() : binaryReader.ReadSByte();
                     break;
                 case ColumnType.UInt16:
-                    result.Value = bytesReader is not null ? bytesReader.ReadUInt16BE() : binaryReader.ReadUInt16BE();
+                    result.Value = bytesReader != null ? bytesReader.ReadUInt16BE() : binaryReader.ReadUInt16BE();
                     break;
                 case ColumnType.Int16:
-                    result.Value = bytesReader is not null ? bytesReader.ReadInt16BE() : binaryReader.ReadInt16BE();
+                    result.Value = bytesReader != null ? bytesReader.ReadInt16BE() : binaryReader.ReadInt16BE();
                     break;
                 case ColumnType.UInt32:
-                    result.Value = bytesReader is not null ? bytesReader.ReadUInt32BE() : binaryReader.ReadUInt32BE();
+                    result.Value = bytesReader != null ? bytesReader.ReadUInt32BE() : binaryReader.ReadUInt32BE();
                     break;
                 case ColumnType.Int32:
-                    result.Value = bytesReader is not null ? bytesReader.ReadInt32BE() : binaryReader.ReadInt32BE();
+                    result.Value = bytesReader != null ? bytesReader.ReadInt32BE() : binaryReader.ReadInt32BE();
                     break;
                 case ColumnType.UInt64:
-                    result.Value = bytesReader is not null ? bytesReader.ReadUInt64BE() : binaryReader.ReadUInt64BE();
+                    result.Value = bytesReader != null ? bytesReader.ReadUInt64BE() : binaryReader.ReadUInt64BE();
                     break;
                 case ColumnType.Int64:
-                    result.Value = bytesReader is not null ? bytesReader.ReadInt64BE() : binaryReader.ReadInt64BE();
+                    result.Value = bytesReader != null ? bytesReader.ReadInt64BE() : binaryReader.ReadInt64BE();
                     break;
                 case ColumnType.Float:
-                    result.Value = bytesReader is not null ? bytesReader.ReadSingleBE() : binaryReader.ReadSingleBE();
+                    result.Value = bytesReader != null ? bytesReader.ReadSingleBE() : binaryReader.ReadSingleBE();
                     break;
                 //case ColumnType.Double:
                 //    break;
                 case ColumnType.String:
-                    uint nameOffset = bytesReader is not null ? bytesReader.ReadUInt32BE() : binaryReader.ReadUInt32BE();
+                    uint nameOffset = bytesReader != null ? bytesReader.ReadUInt32BE() : binaryReader.ReadUInt32BE();
                     if (nameOffset > stringsSize)
                         throw new InvalidDataException("Name offset out of bounds.");
                     result.Value = GetStringFromTable(nameOffset);
                     break;
                 case ColumnType.VLData:
-                    if (bytesReader is not null)
+                    if (bytesReader != null)
                     {
                         result.Value = new VLData()
                         {
@@ -339,13 +356,13 @@ namespace CriWareLibrary
             return true;
         }
 
-        public bool Query<T>(int row, int column, out T? value)
+        public bool Query<T>(int row, int column, out T value)
         {
             bool valid = Query(row, column, out Result result);
 
-            bool enumParseResult = Enum.TryParse(typeof(ColumnType), typeof(T).Name, out object? type);
+            bool enumParseResult = Enum.TryParse(typeof(T).Name, out ColumnType type);
 
-            if (!valid || !enumParseResult || (type is not null && result.Type != (ColumnType)type))
+            if (!valid || !enumParseResult || result.Type != type)
             {
                 value = default;
                 return false;
@@ -362,7 +379,7 @@ namespace CriWareLibrary
             return true;
         }
 
-        public bool Query<T>(int row, string columnName, out T? value) =>
+        public bool Query<T>(int row, string columnName, out T value) =>
             Query(row, GetColumn(columnName), out value);
 
         public bool Query(int row, int column, out uint offset, out uint size)
@@ -389,7 +406,7 @@ namespace CriWareLibrary
             if (offset > stringsSize)
                 throw new InvalidDataException("Invalid string offset.");
 
-            StringBuilder stringBuilder = new();
+            StringBuilder stringBuilder = new StringBuilder();
 
             int i = 0;
             while (i < stringsSize)
