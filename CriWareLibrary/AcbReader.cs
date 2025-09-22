@@ -38,6 +38,8 @@ namespace CriWareLibrary
             acbParser = new AcbParser(outerStream);
         }
 
+        public bool HasMemoryAwb => awbLength > 0;
+
         public AwbReader GetAwb()
         {
             return new AwbReader(new SpliceStream(outerStream, awbOffset, awbLength), true);
