@@ -356,27 +356,33 @@ namespace CriWareLibrary
             return true;
         }
 
-        public bool Query<T>(int row, int column, out T value)
+        public bool Query<T>(int row, int column, Type type, out object value)
         {
             bool valid = Query(row, column, out Result result);
+            bool enumParseResult = Enum.TryParse(type.Name, out ColumnType columnType);
 
-            bool enumParseResult = Enum.TryParse(typeof(T).Name, out ColumnType type);
-
-            if (!valid || !enumParseResult || result.Type != type)
+            if (!valid || !enumParseResult || result.Type != columnType)
             {
-                value = default;
+                value = default(T);
                 return false;
             }
 
-            value = (T)result.Value;
+            value = result.Value;
 
             if (value is VLData vlData)
             {
                 vlData.Offset += tableOffset + dataOffset;
-                value = (T)(object)vlData;
+                value = vlData;
             }
 
             return true;
+        }
+
+        public bool Query<T>(int row, int column, out T value)
+        {
+            bool valid = Query<T>(row, column, typeof(T), out object outValue);
+            value = (T)outValue;
+            return valid;
         }
 
         public bool Query<T>(int row, string columnName, out T value) =>
@@ -422,6 +428,9 @@ namespace CriWareLibrary
         {
             if (!Query(0, tableName, out VLData tableValueData))
                 throw new ArgumentException("Subtable does not exist.");
+
+            if (tableValueData.Size < 1)
+                return null;
 
             binaryReader.BaseStream.Position = tableValueData.Offset;
 
