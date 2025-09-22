@@ -25,7 +25,7 @@ namespace CriWareLibrary
         Int32 = 0x05,
         UInt64 = 0x06,
         Int64 = 0x07,
-        Float = 0x08,
+        Single = 0x08,
         Double = 0x09,
         String = 0x0A,
         VLData = 0x0B,
@@ -193,7 +193,7 @@ namespace CriWareLibrary
                         break;
                     case ColumnType.UInt32:
                     case ColumnType.Int32:
-                    case ColumnType.Float:
+                    case ColumnType.Single:
                     case ColumnType.String:
                         valueSize = 0x4;
                         break;
@@ -318,7 +318,7 @@ namespace CriWareLibrary
                 case ColumnType.Int64:
                     result.Value = bytesReader != null ? bytesReader.ReadInt64BE() : binaryReader.ReadInt64BE();
                     break;
-                case ColumnType.Float:
+                case ColumnType.Single:
                     result.Value = bytesReader != null ? bytesReader.ReadSingleBE() : binaryReader.ReadSingleBE();
                     break;
                 //case ColumnType.Double:
