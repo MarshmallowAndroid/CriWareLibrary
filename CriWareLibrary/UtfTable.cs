@@ -239,6 +239,8 @@ namespace CriWareLibrary
 
         public string TableName => tableName;
 
+        public Stream Stream => binaryReader.BaseStream;
+
         public int GetColumn(string columnName)
         {
             for (int i = 0; i < columns; i++)
@@ -356,14 +358,14 @@ namespace CriWareLibrary
             return true;
         }
 
-        public bool Query<T>(int row, int column, Type type, out object value)
+        public bool Query(int row, int column, Type type, out object value)
         {
             bool valid = Query(row, column, out Result result);
             bool enumParseResult = Enum.TryParse(type.Name, out ColumnType columnType);
 
             if (!valid || !enumParseResult || result.Type != columnType)
             {
-                value = default(T);
+                value = Activator.CreateInstance(type);
                 return false;
             }
 
@@ -380,7 +382,7 @@ namespace CriWareLibrary
 
         public bool Query<T>(int row, int column, out T value)
         {
-            bool valid = Query<T>(row, column, typeof(T), out object outValue);
+            bool valid = Query(row, column, typeof(T), out object outValue);
             value = (T)outValue;
             return valid;
         }
@@ -418,7 +420,7 @@ namespace CriWareLibrary
             while (i < stringsSize)
             {
                 stringBuilder.Append((char)stringTable[offset + i++]);
-                if (stringTable[offset + i] == '\0') break;
+                if ((offset + i) >= stringTable.Length || stringTable[offset + i] == '\0') break;
             }
 
             return stringBuilder.ToString();
