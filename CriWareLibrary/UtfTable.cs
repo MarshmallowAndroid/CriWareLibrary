@@ -256,7 +256,7 @@ namespace CriWareLibrary
             return -1;
         }
 
-        private bool Query(int row, int column, out Result result)
+        public bool Query(int row, int column, out Result result)
         {
             result = new Result();
 
